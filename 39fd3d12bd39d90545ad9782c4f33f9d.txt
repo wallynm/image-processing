@@ -1,0 +1,34 @@
+This top-down image depicts a detailed map of two adjacent cities, ideal for a battle grid RPG scenario. 
+
+### Key Features and Terrain Elements:
+
+1. **Cities Overview**:
+   - **Elysia (Left)**:
+     - Circular layout with roads radiating from a central point.
+     - Surrounded by a wall, offering potential for defensive scenarios.
+     - A large central plaza, which could serve as a key battleground.
+   - **Erebos (Right)**:
+     - Similar circular layout with a large central arena, ideal for combat events.
+     - Also walled, suggesting fortified positions.
+
+2. **Bridges and Connecting Elements**:
+   - A wide bridge connects the two cities over water, possibly acting as a strategic choke point or battle area.
+
+3. **Water Features**:
+   - The cities are separated by a body of water encouraging naval encounters or aquatic threats.
+   - Several smaller islands and docks are present, which could be used for side quests or pirate ambushes.
+
+4. **Surrounding Areas**:
+   - **Elysia**: Green fields and farmland, which could host rural encounters or ambush sites.
+   - **Erebos**: More rugged terrain with forests, adding elements of stealth or surprise attacks.
+
+5. **Structures and Objects**:
+   - Numerous buildings and alleys within each city provide cover and strategic movement options.
+   - A circular structure in Erebos can serve as an arena or meeting point.
+   - In Elysia, a notable rotunda or temple, perfect for clandestine meetings or relic quests.
+
+6. **Landmark Features**:
+   - Towers or guard posts on edges of cities for high ground advantages.
+   - Distinct icons and areas within cities allowing for individualized encounter setups.
+
+This map provides diverse environments and features, supporting varied strategic gameplay for tabletop RPGs.
