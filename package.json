@@ -8,6 +8,7 @@
 		"node": ">=16"
 	},
 	"scripts": {
+		"start": "pnpm build && node dist/cli.js",
 		"build": "tsc",
 		"dev": "tsc --watch",
 		"test": "prettier --check . && xo && ava"

@@ -76,11 +76,6 @@ export default function App() {
             // Validate API key for DeepSeek
             if (selectedModel === 'deepseek') {
                 const deepseekApiKey = process.env['DEEPSEEK_API_KEY']?.trim();
-                console.log('DeepSeek API Key Debug:', {
-                    keyPresent: !!deepseekApiKey,
-                    keyLength: deepseekApiKey?.length,
-                    keyFirstChars: deepseekApiKey?.slice(0, 5)
-                });
                 if (!deepseekApiKey || deepseekApiKey.length < 10) {
                     throw new Error('Invalid or incomplete DeepSeek API key');
                 }
@@ -146,13 +141,6 @@ export default function App() {
                     if (imageBuffer.length === 0) {
                         throw new Error(`Empty image file: ${imageFile}`);
                     }
-                    // Detailed logging of API parameters
-                    console.log('API Call Details:', {
-                        modelType,
-                        modelName: modelType === 'openai' ? 'gpt-4o' : 'deepseek-chat',
-                        imageFileSize: imageBuffer.length,
-                        imageFileName: path.basename(imageFile)
-                    });
                     // Call generateText with messages array and base64 image
                     const result = await generateText({
                         model: model,
