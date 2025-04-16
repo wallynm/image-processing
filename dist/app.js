@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text } from 'ink';
 // @ts-ignore - Assuming @types/fs-extra is not installed
 import fs from 'fs-extra';
 import path from 'path';
@@ -15,58 +15,41 @@ import { ModelSelector } from './ModelSelector.js';
 import { ProcessingView } from './ProcessingView.js';
 import { SummaryView } from './SummaryView.js';
 import { StatusMessages } from './StatusMessages.js';
+import { useStatusMessages } from './hooks/useStatusMessages.js';
 dotenv.config();
 // AI Prompt
-const PROMPT = "Please analyze this image and provide a detailed description. Focus on describing the layout, objects, terrain features, camera position, and any notable elements visible in the image. Be specific about positions, colors, and arrangements of objects. This description will be used for training other AI models in image recognition tasks focused into generating new images in the same camera position focused into topdown view for grid and battlemap scenarios.";
+const PROMPT = `
+Please analyze this image and provide a detailed description.
+Focus on describing the layout, objects, terrain features,
+camera position, and any notable elements visible in the image.
+Be specific about positions, colors, and arrangements of objects.
+This description will be used for training other AI models in image
+recognition tasks focused into generating new images in the same
+camera position focused into topdown view for grid and battlemap
+scenarios. Generate all descriptions in english, following a format
+without bullet points, but a plain-text description with all info gathered
+about the image in nice description.
+- Always start the description with 'Topdown image with a focused camera for a for a battle grid RPG scenario, {generated_description}'
+`;
 // Main App Component
 export default function App() {
-    const { exit } = useApp();
-    const [step, setStep] = useState('selectModel');
+    const { statusMessages, errorMessage, step, addMessage, addSuccessMessage, addErrorMessage, setErrorState, clearStatusMessages, setStep } = useStatusMessages();
     const [modelType, setModelType] = useState(null);
     const [imagesToProcess, setImagesToProcess] = useState([]);
-    const [statusMessages, setStatusMessages] = useState([]);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [summary, setSummary] = useState({ total: 0, processed: 0, skipped: 0, errors: 0 });
-    const [errorMessage, setErrorMessage] = useState(null);
-    // --- Helper: Add Status Message ---
-    const addMessage = (text) => {
-        setStatusMessages((prev) => [...prev, {
-                text,
-                type: 'info', // default type
-                id: Date.now() + Math.random()
-            }]);
-    };
-    const addSuccessMessage = (text) => {
-        setStatusMessages((prev) => [...prev, {
-                text,
-                type: 'success',
-                id: Date.now() + Math.random()
-            }]);
-    };
-    const addErrorMessage = (text) => {
-        setStatusMessages((prev) => [...prev, {
-                text,
-                type: 'error',
-                id: Date.now() + Math.random()
-            }]);
-    };
-    // --- Helper: Set Error Step ---
-    const setErrorState = useCallback((message) => {
-        setErrorMessage(message);
-        setStep('error');
-    }, []);
-    // --- Step 1 (was 2): Handle Model Selection & Find Images ---
+    // Initialize step to 'selectModel' if not set
+    useEffect(() => {
+        if (!step || step === 'initial') {
+            setStep('selectModel');
+        }
+    }, [step, setStep]);
     const handleModelSelected = useCallback(async (selectedModel) => {
         setModelType(selectedModel);
         setStep('validating');
-        setStatusMessages([]); // Clear messages from selection screen
+        clearStatusMessages(); // Clear messages from selection screen
         addMessage(`Validating environment for ${selectedModel}...`);
         try {
-            // Environment validation
-            console.log('Environment Variables:', {
-                OPENAI_API_KEY: process.env['OPENAI_API_KEY'] ? 'PRESENT' : 'MISSING',
-                DEEPSEEK_API_KEY: process.env['DEEPSEEK_API_KEY'] ? 'PRESENT' : 'MISSING'
-            });
             if (selectedModel === 'openai' && !process.env['OPENAI_API_KEY']) {
                 throw new Error('OPENAI_API_KEY is not set in .env file');
             }
@@ -104,7 +87,7 @@ export default function App() {
         catch (error) {
             setErrorState(error.message);
         }
-    }, [addMessage, setErrorState]); // Dependencies
+    }, [addMessage, setErrorState, clearStatusMessages]); // Dependencies
     // --- Step 2 (was 3): Process Images --- 
     useEffect(() => {
         if (step !== 'processing' || !modelType || currentImageIndex >= imagesToProcess.length) {
@@ -141,28 +124,38 @@ export default function App() {
                     if (imageBuffer.length === 0) {
                         throw new Error(`Empty image file: ${imageFile}`);
                     }
-                    // Call generateText with messages array and base64 image
-                    const result = await generateText({
+                    // Prepare arguments for generateText
+                    let generateTextArgs = {
                         model: model,
-                        messages: [
+                        maxTokens: 4096,
+                        temperature: 0.7
+                    };
+                    if (modelType === 'openai') {
+                        generateTextArgs.messages = [
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'text', text: PROMPT },
+                                    {
+                                        type: 'image',
+                                        image: base64Image,
+                                        mimeType: 'image/jpeg'
+                                    }
+                                ]
+                            }
+                        ];
+                    }
+                    else { // For DeepSeek
+                        generateTextArgs.messages = [
                             {
                                 role: 'user',
                                 content: PROMPT
                             }
-                        ],
-                        ...(modelType === 'openai'
-                            ? {
-                                images: [{
-                                        data: base64Image,
-                                        mimeType: 'image/jpeg'
-                                    }]
-                            }
-                            : {
-                                images: [base64Image]
-                            }),
-                        maxTokens: 4096, // Explicitly set max tokens
-                        temperature: 0.7 // Add some creativity while maintaining accuracy
-                    });
+                        ];
+                        generateTextArgs.images = [base64Image]; // Keep top-level images for DeepSeek
+                    }
+                    // Call generateText with structured arguments
+                    const result = await generateText(generateTextArgs);
                     if (!result || !result.text) {
                         throw new Error('No response received from the API');
                     }
@@ -239,11 +232,13 @@ export default function App() {
     // --- Effect to handle exit on error ---
     useEffect(() => {
         if (step === 'error') {
-            const timer = setTimeout(() => exit(), 2000);
-            return () => clearTimeout(timer);
+            console.error('Error occurred:', errorMessage);
+            // Remove the automatic exit
+            // const timer = setTimeout(() => exit(), 2000);
+            // return () => clearTimeout(timer);
         }
         return undefined;
-    }, [step, exit]);
+    }, [step, errorMessage]);
     // --- Render Logic ---
     return (React.createElement(Box, { flexDirection: "column", padding: 1 },
         React.createElement(Text, { bold: true, color: "cyan" }, "=== Image Processing with AI ==="),
