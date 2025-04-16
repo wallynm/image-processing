@@ -1,22 +1,20 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import SelectInput from 'ink-select-input'; // Import SelectInput
+import SelectInput /*, { type Item }*/ from 'ink-select-input';
 import { StatusMessages } from './StatusMessages.js';
-// Define the items for the SelectInput
-const items = [
-    {
-        label: 'OpenAI GPT-4o',
-        value: 'openai', // Ensure value matches ModelType
-    },
-    {
-        label: 'DeepSeek Vision',
-        value: 'deepseek',
-    },
-];
 // Component for selecting the AI model using SelectInput
-export function ModelSelector({ messages, onModelSelect }) {
+export function ModelSelector({ messages, availableModels, onModelSelect }) {
+    // Transform providers into items for SelectInput
+    const items = availableModels.map(provider => ({
+        label: provider.name, // Use provider's display name
+        value: provider.key, // Use provider's key as the value
+    }));
+    // handleSelect - simplified type annotation
     const handleSelect = (item) => {
-        onModelSelect(item.value);
+        // item.value is the ModelType key we need to pass up
+        if (item.value) { // Ensure value exists
+            onModelSelect(item.value);
+        }
     };
     return (React.createElement(Box, { flexDirection: "column", marginTop: 1 },
         React.createElement(StatusMessages, { messages: messages }),

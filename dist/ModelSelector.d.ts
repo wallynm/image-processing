@@ -1,9 +1,10 @@
 import React from 'react';
 import { StatusMessage } from './StatusMessages.js';
-export type ModelType = 'openai' | 'deepseek';
+import { ModelType, IModelProvider } from './models/index.js';
 type ModelSelectorProps = {
     messages: StatusMessage[];
-    onModelSelect: (model: ModelType) => void;
+    availableModels: IModelProvider[];
+    onModelSelect: (modelKey: ModelType) => void;
 };
-export declare function ModelSelector({ messages, onModelSelect }: ModelSelectorProps): React.JSX.Element;
+export declare function ModelSelector({ messages, availableModels, onModelSelect }: ModelSelectorProps): React.JSX.Element;
 export {};

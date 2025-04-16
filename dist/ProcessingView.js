@@ -2,12 +2,11 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 // Component to display the processing status
-export function ProcessingView({ modelType, totalImages, currentIndex, messages, isProcessing, currentFile }) {
-    const modelName = modelType === 'openai' ? 'OpenAI GPT-4o' : 'DeepSeek Vision';
+export function ProcessingView({ modelName, totalImages, currentIndex, messages, isProcessing, currentFile }) {
     // Filter messages to count different types
     const successCount = messages.filter(msg => msg.type === 'success').length;
     const errorCount = messages.filter(msg => msg.type === 'error').length;
-    const skippedCount = currentIndex - (successCount + errorCount);
+    const skippedCount = Math.max(0, currentIndex - (successCount + errorCount));
     return (React.createElement(Box, { flexDirection: "column", marginTop: 1 },
         React.createElement(Text, null,
             "Using model: ",

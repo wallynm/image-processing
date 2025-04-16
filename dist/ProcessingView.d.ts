@@ -1,13 +1,12 @@
 import React from 'react';
-import { ModelType } from './ModelSelector.js';
 import { StatusMessage } from './StatusMessages.js';
 type ProcessingViewProps = {
-    modelType: ModelType;
+    modelName: string;
     totalImages: number;
     currentIndex: number;
     messages: StatusMessage[];
     isProcessing: boolean;
     currentFile?: string;
 };
-export declare function ProcessingView({ modelType, totalImages, currentIndex, messages, isProcessing, currentFile }: ProcessingViewProps): React.JSX.Element;
+export declare function ProcessingView({ modelName, totalImages, currentIndex, messages, isProcessing, currentFile }: ProcessingViewProps): React.JSX.Element;
 export {};

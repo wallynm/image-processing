@@ -4,18 +4,21 @@ import { Box, Text } from 'ink';
 import fs from 'fs-extra';
 import path from 'path';
 import dotenv from 'dotenv';
-// Updated imports for Vercel AI SDK v3+
-import { generateText } from 'ai';
-// import { createOpenAI } from '@ai-sdk/openai';
-// import { createDeepSeek } from '@ai-sdk/deepseek';
-import { openai } from '@ai-sdk/openai';
-import { deepseek } from '@ai-sdk/deepseek';
-// Import sub-components (will be created in the next step)
-import { ModelSelector } from './ModelSelector.js';
+// Removed unused AI SDK direct imports
+// import { generateText } from 'ai';
+// import { openai } from '@ai-sdk/openai';
+// import { deepseek } from '@ai-sdk/deepseek';
+// Import model providers and types
+import { availableModels, getModelProvider } from './models/index.js';
+// Import sub-components
+// Removed old ModelSelector import, will update/replace
+// import { ModelSelector, ModelType } from './ModelSelector.js';
 import { ProcessingView } from './ProcessingView.js';
 import { SummaryView } from './SummaryView.js';
 import { StatusMessages } from './StatusMessages.js';
 import { useStatusMessages } from './hooks/useStatusMessages.js';
+// Import the new ModelSelector
+import { ModelSelector } from './ModelSelector.js'; // Assuming ModelSelector is updated or replaced
 dotenv.config();
 // AI Prompt
 const PROMPT = `
@@ -34,7 +37,8 @@ about the image in nice description.
 // Main App Component
 export default function App() {
     const { statusMessages, errorMessage, step, addMessage, addSuccessMessage, addErrorMessage, setErrorState, clearStatusMessages, setStep } = useStatusMessages();
-    const [modelType, setModelType] = useState(null);
+    // Store the selected provider object instead of just the key
+    const [selectedProvider, setSelectedProvider] = useState(null);
     const [imagesToProcess, setImagesToProcess] = useState([]);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [summary, setSummary] = useState({ total: 0, processed: 0, skipped: 0, errors: 0 });
@@ -44,122 +48,82 @@ export default function App() {
             setStep('selectModel');
         }
     }, [step, setStep]);
-    const handleModelSelected = useCallback(async (selectedModel) => {
-        setModelType(selectedModel);
+    // Updated handler for model selection
+    const handleModelSelected = useCallback(async (selectedModelKey) => {
+        const provider = getModelProvider(selectedModelKey);
+        if (!provider) {
+            setErrorState(`Invalid model selected: ${selectedModelKey}`);
+            return;
+        }
+        setSelectedProvider(provider); // Store the provider object
         setStep('validating');
-        clearStatusMessages(); // Clear messages from selection screen
-        addMessage(`Validating environment for ${selectedModel}...`);
+        clearStatusMessages();
+        addMessage(`Validating environment for ${provider.name}...`);
         try {
-            if (selectedModel === 'openai' && !process.env['OPENAI_API_KEY']) {
-                throw new Error('OPENAI_API_KEY is not set in .env file');
-            }
-            else if (selectedModel === 'deepseek' && !process.env['DEEPSEEK_API_KEY']) {
-                throw new Error('DEEPSEEK_API_KEY is not set in .env file');
-            }
-            // Validate API key for DeepSeek
-            if (selectedModel === 'deepseek') {
-                const deepseekApiKey = process.env['DEEPSEEK_API_KEY']?.trim();
-                if (!deepseekApiKey || deepseekApiKey.length < 10) {
-                    throw new Error('Invalid or incomplete DeepSeek API key');
-                }
-            }
+            // Use the provider's validation method
+            await provider.validateEnvironment();
             addMessage('Environment OK.');
-            // --- Find Images (Moved here) ---
+            // --- Find Images (remains largely the same) ---
             setStep('findingImages');
             const imageDir = path.join(process.cwd(), 'images');
             addMessage(`Searching for JPG/JPEG images in ${imageDir}...`);
             if (!await fs.pathExists(imageDir)) {
                 throw new Error(`Image directory not found: ${imageDir}`);
             }
-            const files = await fs.readdir(imageDir); // Read from images subdirectory
-            const imageFiles = files.filter((file) => /\.(jpg|jpeg)$/i.test(file)).map((file) => path.join('images', file)); // Keep the relative 'images/' path
+            const files = await fs.readdir(imageDir);
+            const imageFiles = files.filter((file) => /\.(jpg|jpeg)$/i.test(file)).map((file) => path.join('images', file));
             if (imageFiles.length === 0) {
                 throw new Error(`No JPG/JPEG images found in ${imageDir}.`);
             }
             setImagesToProcess(imageFiles);
-            setSummary({ total: imageFiles.length, processed: 0, skipped: 0, errors: 0 }); // Reset summary with new total
-            setCurrentImageIndex(0); // Reset index
+            setSummary({ total: imageFiles.length, processed: 0, skipped: 0, errors: 0 });
+            setCurrentImageIndex(0);
             addMessage(`Found ${imageFiles.length} images.`);
             // Proceed to processing
-            addMessage(`Starting processing with ${selectedModel === 'openai' ? 'OpenAI GPT-4o' : 'DeepSeek Vision'}...`);
+            addMessage(`Starting processing with ${provider.name}...`);
             setStep('processing');
         }
         catch (error) {
             setErrorState(error.message);
         }
-    }, [addMessage, setErrorState, clearStatusMessages]); // Dependencies
-    // --- Step 2 (was 3): Process Images --- 
+        // Dependencies updated: remove setErrorState, clearStatusMessages and add provider dependency indirectly via setSelectedProvider
+    }, [addMessage, clearStatusMessages, setErrorState, setStep]);
+    // --- Process Images ---
     useEffect(() => {
-        if (step !== 'processing' || !modelType || currentImageIndex >= imagesToProcess.length) {
+        // Check if selectedProvider is available
+        if (step !== 'processing' || !selectedProvider || currentImageIndex >= imagesToProcess.length) {
             if (step === 'processing' && currentImageIndex >= imagesToProcess.length) {
                 addMessage('Processing complete.');
-                setStep('summary'); // Move to summary when all images are processed
+                setStep('summary');
             }
-            return; // Only run when in processing step and images remain
+            return;
         }
-        let isActive = true; // Prevent state updates on unmounted component
+        let isActive = true;
         const processCurrentImage = async () => {
             const imageFile = imagesToProcess[currentImageIndex];
             if (!imageFile)
-                return; // Should not happen
+                return;
             const baseName = path.basename(imageFile, path.extname(imageFile));
             const txtPath = path.join(process.cwd(), 'images', `${baseName}.txt`);
+            const imageExt = path.extname(imageFile).toLowerCase(); // e.g., '.jpg'
+            const mimeType = imageExt === '.jpeg' || imageExt === '.jpg' ? 'image/jpeg' : `image/${imageExt.substring(1)}`; // Determine MIME type
             let processed = false;
             let skipped = false;
             let errorOccurred = false;
             try {
-                // Check if file exists before processing
                 if (await fs.pathExists(txtPath)) {
                     skipped = true;
                 }
                 else {
                     const fullImagePath = path.join(process.cwd(), imageFile);
                     const imageBuffer = await fs.readFile(fullImagePath);
-                    const base64Image = imageBuffer.toString('base64');
-                    // Get the correct AI model instance
-                    const model = modelType === 'openai'
-                        ? openai('gpt-4o')
-                        : deepseek('deepseek-chat');
-                    // Validate image before processing
                     if (imageBuffer.length === 0) {
                         throw new Error(`Empty image file: ${imageFile}`);
                     }
-                    // Prepare arguments for generateText
-                    let generateTextArgs = {
-                        model: model,
-                        maxTokens: 4096,
-                        temperature: 0.7
-                    };
-                    if (modelType === 'openai') {
-                        generateTextArgs.messages = [
-                            {
-                                role: 'user',
-                                content: [
-                                    { type: 'text', text: PROMPT },
-                                    {
-                                        type: 'image',
-                                        image: base64Image,
-                                        mimeType: 'image/jpeg'
-                                    }
-                                ]
-                            }
-                        ];
-                    }
-                    else { // For DeepSeek
-                        generateTextArgs.messages = [
-                            {
-                                role: 'user',
-                                content: PROMPT
-                            }
-                        ];
-                        generateTextArgs.images = [base64Image]; // Keep top-level images for DeepSeek
-                    }
-                    // Call generateText with structured arguments
-                    const result = await generateText(generateTextArgs);
-                    if (!result || !result.text) {
-                        throw new Error('No response received from the API');
-                    }
-                    const description = result.text;
+                    const base64Image = imageBuffer.toString('base64');
+                    // Use the selected provider's generateText method
+                    const description = await selectedProvider.generateText(PROMPT, base64Image, mimeType);
+                    // Removed model-specific generateText calls and argument preparation
                     await fs.writeFile(txtPath, description);
                     processed = true;
                 }
@@ -167,69 +131,43 @@ export default function App() {
             catch (error) {
                 errorOccurred = true;
                 if (isActive) {
-                    // Enhanced error logging
-                    const apiError = error.response?.data?.error;
-                    const statusCode = error.response?.status;
-                    const errorDetail = error.response?.data?.detail;
-                    let errorMessage = `Error processing ${path.basename(imageFile)}:`;
-                    if (statusCode)
-                        errorMessage += ` [${statusCode}]`;
-                    if (apiError)
-                        errorMessage += ` ${apiError}`;
-                    if (errorDetail)
-                        errorMessage += ` - ${errorDetail}`;
-                    if (!apiError && !errorDetail)
-                        errorMessage += ` ${error.message}`;
+                    // Simplified error logging, provider-specific details can be logged within the provider itself if needed
+                    let errorMessage = `Error processing ${path.basename(imageFile)} with ${selectedProvider.name}: ${error.message}`;
+                    // You might want to retain more detailed logging based on error types from the provider if needed
                     addErrorMessage(errorMessage);
-                    console.error('Full error details for image:', path.basename(imageFile), {
+                    console.error(`Full error details for ${selectedProvider.name} on image:`, path.basename(imageFile), {
                         message: error.message,
-                        status: error.response?.status,
-                        statusText: error.response?.statusText,
-                        data: error.response?.data,
                         stack: error.stack,
-                        apiKey: process.env['DEEPSEEK_API_KEY'] ? 'PRESENT' : 'MISSING',
-                        modelType: modelType
+                        // Add any generic error details if available (e.g., from AxiosError)
+                        ...(error.response && { status: error.response.status, data: error.response.data }),
                     });
-                    // Additional diagnostic logging
-                    if (modelType === 'deepseek') {
-                        console.error('DeepSeek Specific Diagnostics:', {
-                            apiKeyLength: process.env['DEEPSEEK_API_KEY']?.length || 0,
-                            apiKeyFirstChars: process.env['DEEPSEEK_API_KEY']?.slice(0, 5) || 'N/A',
-                            errorType: error.constructor.name,
-                            errorProperties: Object.keys(error)
-                        });
-                    }
                 }
             }
-            // Only update states if component is still mounted
             if (isActive) {
                 if (processed) {
                     addSuccessMessage(`Processed ${path.basename(imageFile)}`);
                 }
                 else if (skipped) {
-                    // Don't show individual skipped files
                     setSummary((prev) => ({
                         ...prev,
                         skipped: prev.skipped + 1
                     }));
                 }
-                // Update summary state based on outcome
                 setSummary((prev) => ({
                     ...prev,
                     processed: prev.processed + (processed ? 1 : 0),
                     errors: prev.errors + (errorOccurred ? 1 : 0),
                 }));
-                // Move to the next image
                 setCurrentImageIndex(prevIndex => prevIndex + 1);
             }
         };
         processCurrentImage();
-        // Cleanup function to prevent state updates if the component unmounts during processing
         return () => {
             isActive = false;
         };
-    }, [step, modelType, currentImageIndex, imagesToProcess, addMessage, addSuccessMessage, addErrorMessage]); // Dependencies
-    // --- Effect to handle exit on error ---
+        // Dependencies updated: use selectedProvider instead of modelType
+    }, [step, selectedProvider, currentImageIndex, imagesToProcess, addMessage, addSuccessMessage, addErrorMessage, setStep]);
+    // --- Effect to handle exit on error (remains the same) ---
     useEffect(() => {
         if (step === 'error') {
             console.error('Error occurred:', errorMessage);
@@ -248,8 +186,12 @@ export default function App() {
                 "Error: ",
                 errorMessage),
             React.createElement(Text, null, "Exiting..."))),
-        step === 'selectModel' && (React.createElement(ModelSelector, { messages: statusMessages, onModelSelect: handleModelSelected })),
-        step === 'processing' && modelType && (React.createElement(ProcessingView, { modelType: modelType, totalImages: summary.total, currentIndex: currentImageIndex, messages: statusMessages, isProcessing: true, currentFile: imagesToProcess[currentImageIndex] })),
+        step === 'selectModel' && (React.createElement(ModelSelector, { messages: statusMessages, availableModels: availableModels, onModelSelect: handleModelSelected })),
+        step === 'processing' && selectedProvider && (React.createElement(ProcessingView
+        // Pass provider name instead of modelType key
+        , { 
+            // Pass provider name instead of modelType key
+            modelName: selectedProvider.name, totalImages: summary.total, currentIndex: currentImageIndex, messages: statusMessages, isProcessing: true, currentFile: imagesToProcess[currentImageIndex] })),
         step === 'summary' && (React.createElement(React.Fragment, null,
             React.createElement(StatusMessages, { messages: statusMessages }),
             React.createElement(SummaryView, { summary: summary })))));

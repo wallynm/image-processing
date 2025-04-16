@@ -1,12 +1,11 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { ModelType } from './ModelSelector.js'; // Import shared type
 import { StatusMessage } from './StatusMessages.js';
 
 // Props for the ProcessingView component
 type ProcessingViewProps = {
-	modelType: ModelType;
+	modelName: string;
 	totalImages: number;
 	currentIndex: number;
 	messages: StatusMessage[];
@@ -16,19 +15,17 @@ type ProcessingViewProps = {
 
 // Component to display the processing status
 export function ProcessingView({ 
-    modelType, 
+    modelName, 
     totalImages, 
     currentIndex, 
     messages, 
     isProcessing,
     currentFile
 }: ProcessingViewProps) {
-	const modelName = modelType === 'openai' ? 'OpenAI GPT-4o' : 'DeepSeek Vision';
-	
 	// Filter messages to count different types
 	const successCount = messages.filter(msg => msg.type === 'success').length;
 	const errorCount = messages.filter(msg => msg.type === 'error').length;
-	const skippedCount = currentIndex - (successCount + errorCount);
+	const skippedCount = Math.max(0, currentIndex - (successCount + errorCount));
 
 	return (
 		<Box flexDirection="column" marginTop={1}>
