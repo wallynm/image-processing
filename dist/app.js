@@ -1,26 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text } from 'ink';
-// @ts-ignore - Assuming @types/fs-extra is not installed
 import fs from 'fs-extra';
-import path from 'path';
+import path from 'node:path';
 import dotenv from 'dotenv';
-// Removed unused AI SDK direct imports
-// import { generateText } from 'ai';
-// import { openai } from '@ai-sdk/openai';
-// import { deepseek } from '@ai-sdk/deepseek';
-// Import model providers and types
 import { availableModels, getModelProvider } from './models/index.js';
-// Import sub-components
-// Removed old ModelSelector import, will update/replace
-// import { ModelSelector, ModelType } from './ModelSelector.js';
 import { ProcessingView } from './ProcessingView.js';
 import { SummaryView } from './SummaryView.js';
 import { StatusMessages } from './StatusMessages.js';
 import { useStatusMessages } from './hooks/useStatusMessages.js';
-// Import the new ModelSelector
-import { ModelSelector } from './ModelSelector.js'; // Assuming ModelSelector is updated or replaced
+import { ModelSelector } from './ModelSelector.js';
 dotenv.config();
-// AI Prompt
 const PROMPT = `
 Please analyze this image and provide a detailed description.
 Focus on describing the layout, objects, terrain features,
@@ -34,36 +23,29 @@ without bullet points, but a plain-text description with all info gathered
 about the image in nice description.
 - Always start the description with 'Topdown image with a focused camera for a for a battle grid RPG scenario, {generated_description}'
 `;
-// Main App Component
 export default function App() {
     const { statusMessages, errorMessage, step, addMessage, addSuccessMessage, addErrorMessage, setErrorState, clearStatusMessages, setStep } = useStatusMessages();
-    // Store the selected provider object instead of just the key
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [imagesToProcess, setImagesToProcess] = useState([]);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [summary, setSummary] = useState({ total: 0, processed: 0, skipped: 0, errors: 0 });
-    // Initialize step to 'selectModel' if not set
     useEffect(() => {
         if (!step || step === 'initial') {
             setStep('selectModel');
         }
     }, [step, setStep]);
-    // Updated handler for model selection
     const handleModelSelected = useCallback(async (selectedModelKey) => {
         const provider = getModelProvider(selectedModelKey);
         if (!provider) {
             setErrorState(`Invalid model selected: ${selectedModelKey}`);
             return;
         }
-        setSelectedProvider(provider); // Store the provider object
+        setSelectedProvider(provider);
         setStep('validating');
         clearStatusMessages();
         addMessage(`Validating environment for ${provider.name}...`);
         try {
-            // Use the provider's validation method
             await provider.validateEnvironment();
-            addMessage('Environment OK.');
-            // --- Find Images (remains largely the same) ---
             setStep('findingImages');
             const imageDir = path.join(process.cwd(), 'images');
             addMessage(`Searching for JPG/JPEG images in ${imageDir}...`);
